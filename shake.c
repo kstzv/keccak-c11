@@ -76,8 +76,6 @@ static void shake_finalize(uint64_t *state, size_t pos, size_t rate)
     s[rate - 1] ^= 0x80;
 
     keccak_f1600(state);
-
-    pos = 0;
 }
 
 static size_t shake_squeeze(uint64_t *state, uint8_t *out, size_t outlen, size_t pos, size_t rate)
@@ -100,12 +98,6 @@ static size_t shake_squeeze(uint64_t *state, uint8_t *out, size_t outlen, size_t
         pos += n;
         out += n;
         outlen -= n;
-
-        if (pos == rate && outlen > 0)
-        {
-            keccak_f1600(state);
-            pos = 0;
-        }
     }
     
     return pos;
