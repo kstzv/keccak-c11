@@ -1,106 +1,148 @@
 #include <stdint.h>
+#include <stddef.h>
 
-static size_t shake_absorb(uint64_t *state, uint8_t *in, size_t inlen, size_t pos, size_t rate);
-static void shake_finalize(uint64_t *state, size_t pos, size_t rate);
-static size_t shake_squeeze(uint64_t *state, uint8_t *out, size_t outlen, size_t pos, size_t rate);
+struct shake_ctx {
+    uint64_t *state;
+    size_t rate;
+    size_t pos;
 
-void secure_zero(void *ptr, size_t len);
+    const uint8_t *in;
+    size_t inlen;
 
-size_t shake128(uint64_t *state, uint8_t *in, size_t inlen, uint8_t *out, size_t outlen, size_t start_pos)
+    uint8_t *out;
+    size_t outlen;
+};
+
+void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, const uint8_t *in, size_t inlen, uint8_t *out, size_t outlen);
+void shake_ctx_zero(struct shake_ctx *ctx);
+void shake128(struct shake_ctx *ctx);
+void shake256(struct shake_ctx *ctx);
+
+static void shake_absorb(struct shake_ctx *ctx);
+static void shake_finalize(struct shake_ctx *ctx);
+static void shake_squeeze(struct shake_ctx *ctx);
+
+
+void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, const uint8_t *in, size_t inlen, uint8_t *out, size_t outlen)
 {
-	size_t rate = 168;
-	if(start_pos != 0) { return shake_squeeze(state, out, outlen, start_pos, rate); }
-	
-	size_t pos = start_pos;
-	pos = shake_absorb(state, in, inlen, pos, rate);
-	
-	shake_finalize(state, pos, rate);
-	pos = 0;
-	
-	return shake_squeeze(state, out, outlen, pos, rate);
+    ctx->state = state;
+    ctx->rate = 0;
+    ctx->pos = 0;
+
+    ctx->in = in;
+    ctx->inlen = inlen;
+
+    ctx->out = out;
+    ctx->outlen = outlen;
 }
 
-size_t shake256(uint64_t *state, uint8_t *in, size_t inlen, uint8_t *out, size_t outlen, size_t start_pos)
+void shake_ctx_zero(struct shake_ctx *ctx)
 {
-	size_t rate = 136;
-	if(start_pos != 0) { return shake_squeeze(state, out, outlen, start_pos, rate); }
-	
-	size_t pos = 0;
-	pos = shake_absorb(state, in, inlen, pos, rate);
-	
-	shake_finalize(state, pos, rate);
-	pos = 0;
-	
-	return shake_squeeze(state, out, outlen, pos, rate);
-}
+    if (ctx == NULL || ctx->state == NULL) { return; }
 
-void secure_zero(void *ptr, size_t len)
-{
-    volatile unsigned char *p = (volatile unsigned char *)ptr;
-
+    volatile uint8_t *p = (volatile uint8_t *)ctx->state;
+    size_t len = 200;
     while (len--) { *p++ = 0; }
+    ctx->in = NULL;
+    ctx->inlen = 0;
+    ctx->out = NULL;
+    ctx->outlen = 0;
+    ctx->pos = 0;
+    ctx->rate = 0;
 }
 
-static size_t shake_absorb(uint64_t *state, uint8_t *in, size_t inlen, size_t pos, size_t rate)
+void shake128(struct shake_ctx *ctx)
 {
-    uint8_t *s = (uint8_t *)state;
+    ctx->rate = 168;
 
-    while (inlen > 0) 
+    if (ctx->pos != 0) 
     {
-        size_t n = rate - pos;
+        shake_squeeze(ctx);
+        return;
+    }
 
-        if (n > inlen) { n = inlen; }
+    shake_absorb(ctx);
+    shake_finalize(ctx);
 
-        for (size_t i = 0; i < n; i++) { s[pos + i] ^= in[i]; }
+    ctx->pos = 0;
 
-        pos  += n;
-        in   += n;
-        inlen-= n;
+    shake_squeeze(ctx);
+}
 
-        if (pos == rate) 
+void shake256(struct shake_ctx *ctx)
+{
+    ctx->rate = 136;
+
+    if (ctx->pos != 0) 
+    {
+        shake_squeeze(ctx);
+        return;
+    }
+
+    shake_absorb(ctx);
+    shake_finalize(ctx);
+
+    ctx->pos = 0;
+
+    shake_squeeze(ctx);
+}
+
+static void shake_absorb(struct shake_ctx *ctx)
+{
+    uint8_t *s = (uint8_t *)ctx->state;
+
+    while (ctx->inlen > 0)
+    {
+        size_t n = ctx->rate - ctx->pos;
+
+        if (n > ctx->inlen) { n = ctx->inlen; }
+
+        for (size_t i = 0; i < n; i++) { s[ctx->pos + i] ^= ctx->in[i]; }
+
+        ctx->pos += n;
+        ctx->in += n;
+        ctx->inlen -= n;
+
+        if (ctx->pos == ctx->rate)
         {
-            keccak_f1600(state);
-            pos = 0;
+            keccak_f1600(ctx->state);
+            ctx->pos = 0;
         }
     }
-    
-    return pos;
-}
-		
-
-static void shake_finalize(uint64_t *state, size_t pos, size_t rate)
-{
-    uint8_t *s = (uint8_t *)state;
-
-    s[pos] ^= 0x1F;
-    s[rate - 1] ^= 0x80;
-
-    keccak_f1600(state);
 }
 
-static size_t shake_squeeze(uint64_t *state, uint8_t *out, size_t outlen, size_t pos, size_t rate)
+static void shake_finalize(struct shake_ctx *ctx)
 {
-    uint8_t *s = (uint8_t *)state;
+    uint8_t *s = (uint8_t *)ctx->state;
 
-    while (outlen > 0)
+    s[ctx->pos] ^= 0x1F;
+    s[ctx->rate - 1] ^= 0x80;
+
+    keccak_f1600(ctx->state);
+}
+
+static void shake_squeeze(struct shake_ctx *ctx)
+{
+    uint8_t *s = (uint8_t *)ctx->state;
+
+    while (ctx->outlen > 0)
     {
-		if (pos == rate)
-		{
-			keccak_f1600(state);
-			pos = 0;
-		}
-        size_t n = rate - pos;
+        if (ctx->pos == ctx->rate)
+        {
+            keccak_f1600(ctx->state);
+            ctx->pos = 0;
+        }
 
-        if (n > outlen) { n = outlen; }
+        size_t n = ctx->rate - ctx->pos;
 
-        for (size_t i = 0; i < n; i++) { out[i] = s[pos + i]; }
+        if (n > ctx->outlen) { n = ctx->outlen; }
 
-        pos += n;
-        out += n;
-        outlen -= n;
+        for (size_t i = 0; i < n; i++) { ctx->out[i] = s[ctx->pos + i]; }
+
+        ctx->pos += n;
+        ctx->out += n;
+        ctx->outlen -= n;
     }
-    
-    return pos;
 }
 
 
