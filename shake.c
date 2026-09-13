@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+// Reusable SHAKE context with externally supplied Keccak state
 struct shake_ctx {
     uint64_t *state;
     size_t rate;
@@ -36,10 +37,12 @@ void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, const uint8_t *in, s
     ctx->outlen = outlen;
 }
 
+// Clear the 1600-bit Keccak state and reset the context
 void shake_ctx_zero(struct shake_ctx *ctx)
 {
     if (ctx == NULL || ctx->state == NULL) { return; }
 
+    // 25 lanes x 8 bytes
     volatile uint8_t *p = (volatile uint8_t *)ctx->state;
     size_t len = 200;
     while (len--) { *p++ = 0; }
@@ -55,6 +58,7 @@ void shake128(struct shake_ctx *ctx)
 {
     ctx->rate = 168;
 
+    // Continue squeezing an already finalized state
     if (ctx->pos != 0) 
     {
         shake_squeeze(ctx);
@@ -73,6 +77,7 @@ void shake256(struct shake_ctx *ctx)
 {
     ctx->rate = 136;
 
+    // Continue squeezing an already finalized state
     if (ctx->pos != 0) 
     {
         shake_squeeze(ctx);
@@ -87,6 +92,7 @@ void shake256(struct shake_ctx *ctx)
     shake_squeeze(ctx);
 }
 
+// Absorb input into the rate portion of the Keccak state
 static void shake_absorb(struct shake_ctx *ctx)
 {
     uint8_t *s = (uint8_t *)ctx->state;
@@ -103,6 +109,7 @@ static void shake_absorb(struct shake_ctx *ctx)
         ctx->in += n;
         ctx->inlen -= n;
 
+        // Permute after absorbing a complete rate block
         if (ctx->pos == ctx->rate)
         {
             keccak_f1600(ctx->state);
@@ -111,22 +118,25 @@ static void shake_absorb(struct shake_ctx *ctx)
     }
 }
 
+// Apply SHAKE domain separation and pad10*1 padding
 static void shake_finalize(struct shake_ctx *ctx)
 {
     uint8_t *s = (uint8_t *)ctx->state;
 
-    s[ctx->pos] ^= 0x1F;
-    s[ctx->rate - 1] ^= 0x80;
+    s[ctx->pos] ^= 0x1F;     // SHAKE domain separator
+    s[ctx->rate - 1] ^= 0x80;// Final padding bit
 
     keccak_f1600(ctx->state);
 }
 
+// Extract output from the rate portion, permuting as needed
 static void shake_squeeze(struct shake_ctx *ctx)
 {
     uint8_t *s = (uint8_t *)ctx->state;
 
     while (ctx->outlen > 0)
     {
+        // Generate the next output block when the rate is exhausted
         if (ctx->pos == ctx->rate)
         {
             keccak_f1600(ctx->state);
