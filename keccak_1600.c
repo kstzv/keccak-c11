@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+// Round constants for the 24 rounds of Keccak-f[1600]
 static const uint64_t keccak_rc[24] = {
     0x0000000000000001ULL,
     0x0000000000008082ULL,
@@ -38,6 +39,7 @@ static inline void keccak_pi(uint64_t s[25]);
 static inline void keccak_chi(uint64_t s[25]);
 static inline void keccak_iota(uint64_t s[25], unsigned round);
 
+// Apply the 24 rounds of the Keccak-f[1600] permutation
 void keccak_f1600(uint64_t s[25])
 {
     for (unsigned round = 0; round < 24; round++) 
@@ -50,6 +52,7 @@ void keccak_f1600(uint64_t s[25])
     }
 }
 
+// Theta: mix each column parity into its neighboring columns
 static inline void keccak_theta(uint64_t s[25])
 {
     uint64_t c[5];
@@ -98,6 +101,7 @@ static inline void keccak_theta(uint64_t s[25])
     s[24] ^= d[4];
 }
 
+// Rho: rotate each lane by its fixed Keccak offset
 static inline void keccak_rho(uint64_t s[25])
 {
     // s[0] rotate 0 -- nothing to do
@@ -131,6 +135,7 @@ static inline void keccak_rho(uint64_t s[25])
     s[24] = rotl64(s[24], 14);
 }
 
+// Pi: permute lane positions; lane 0 remains fixed
 static inline void keccak_pi(uint64_t s[25])
 {
     uint64_t t = s[1];
@@ -163,6 +168,7 @@ static inline void keccak_pi(uint64_t s[25])
     // s[0] remains in place
 }
 
+// Chi: nonlinear transformation applied independently to each row
 static inline void keccak_chi(uint64_t s[25])
 {
     uint64_t a0, a1, a2, a3, a4;
@@ -233,6 +239,7 @@ static inline void keccak_chi(uint64_t s[25])
     s[24] = a4 ^ ((~a0) & a1);
 }
 
+// Iota: XOR the round constant into lane (0,0)
 static inline void keccak_iota(uint64_t s[25], unsigned round)
 {
     s[0] ^= keccak_rc[round];
