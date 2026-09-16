@@ -19,9 +19,9 @@ void shake_ctx_zero(struct shake_ctx *ctx);
 void shake128(struct shake_ctx *ctx);
 void shake256(struct shake_ctx *ctx);
 
-void shake_absorb(struct shake_ctx *ctx);
-void shake_finalize(struct shake_ctx *ctx);
-void shake_squeeze(struct shake_ctx *ctx);
+static void shake_absorb(struct shake_ctx *ctx);
+static void shake_finalize(struct shake_ctx *ctx);
+static void shake_squeeze(struct shake_ctx *ctx);
 
 
 void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, const uint8_t *in, size_t inlen, uint8_t *out, size_t outlen)
