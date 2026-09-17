@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+// Four parallel SHAKE instances sharing one interleaved Keccak state
 struct shake_ctx {
     uint64_t (*state)[4];
 
@@ -61,6 +62,7 @@ void shake_get_fourth_msg(struct shake_ctx *ctx, const uint8_t *in, uint8_t *out
 	ctx->out[3] = out;
 }
 
+// Clear the 4-way Keccak state and reset the context
 void shake_ctx_zero(struct shake_ctx *ctx)
 {
     if (ctx == NULL || ctx->state == NULL) { return; }
@@ -135,6 +137,7 @@ static inline void keccak_xor_bytes(uint8_t *s, const uint8_t *in, size_t len)
     for (size_t i = 0; i < len; i++) { s[i] ^= in[i]; }
 }
 
+// Absorb both input streams in parallel
 static void shake_absorb(struct shake_ctx *ctx)
 {
     size_t input_counter = 0;
@@ -143,6 +146,7 @@ static void shake_absorb(struct shake_ctx *ctx)
 
     while (input_counter < ctx->inlen)
     {
+		// Permute after absorbing one full rate block
         if (output_counter == rate_words)
         {
             keccak_f1600_x4(ctx->state);
@@ -152,6 +156,7 @@ static void shake_absorb(struct shake_ctx *ctx)
 
         size_t remaining = ctx->inlen - input_counter;
 
+		// Absorb the final partial word byte-by-byte
         if (remaining < 8)
         {
             keccak_xor_bytes((uint8_t *)&ctx->state[output_counter][0], ctx->in[0], remaining);
@@ -196,14 +201,17 @@ static void shake_absorb(struct shake_ctx *ctx)
     }
 }
 
+// Apply SHAKE domain separation and finalize the sponge
 static void shake_finalize(struct shake_ctx *ctx)
 {
+	// Locate the current byte within the Keccak state
     size_t word = ctx->pos >> 3;
     size_t byte = ctx->pos & 7;
 
     size_t last_word = (ctx->rate - 1) >> 3;
     size_t last_byte = (ctx->rate - 1) & 7;
 
+	// SHAKE domain separator and final pad10*1 bit
     uint64_t ds = (uint64_t)0x1f << (byte * 8);
     uint64_t end = (uint64_t)0x80 << (last_byte * 8);
 
@@ -239,6 +247,7 @@ static inline void store_partial_le(uint8_t *out, uint64_t word, size_t byte, si
     for (size_t i = 0; i < len; i++) { out[i] = (uint8_t)(word >> ((byte + i) * 8)); }
 }
 
+// Squeeze both output streams in parallel
 static void shake_squeeze(struct shake_ctx *ctx)
 {
     size_t output_counter = 0;
@@ -255,6 +264,7 @@ static void shake_squeeze(struct shake_ctx *ctx)
         size_t byte = ctx->pos & 7;
         size_t remaining = ctx->outlen - output_counter;
 
+		// Fast path: the position is aligned to the start of a word, and at least 8 bytes need to be output
         if (byte == 0 && remaining >= 8)
         {
             store64_le(ctx->out[0], ctx->state[word][0]);
@@ -273,6 +283,7 @@ static void shake_squeeze(struct shake_ctx *ctx)
             continue;
         }
 
+		// Partial output: 1–7 bytes or continuation after a previous unaligned squeeze()
         size_t n = 8 - byte;
 
         if (n > remaining) { n = remaining; }
