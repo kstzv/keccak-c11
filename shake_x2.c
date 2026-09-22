@@ -223,7 +223,10 @@ static void shake_squeeze(struct shake_ctx *ctx)
 {
     size_t output_counter = 0;
 
-    while (output_counter < ctx->outlen)
+	size_t local_outlen = ctx->outlen;
+    uint8_t *local_ptr_out = ctx->out;
+
+    while (output_counter < local_outlen)
     {
         if (ctx->pos == ctx->rate)
         {
@@ -233,16 +236,16 @@ static void shake_squeeze(struct shake_ctx *ctx)
 
         size_t word = ctx->pos >> 3;
         size_t byte = ctx->pos & 7;
-        size_t remaining = ctx->outlen - output_counter;
+        size_t remaining = local_outlen - output_counter;
 
         // Fast path: the position is aligned to the start of a word, and at least 8 bytes need to be output
         if (byte == 0 && remaining >= 8)
         {
-            store64_le(ctx->out[0], ctx->state[word][0]);
-            store64_le(ctx->out[1], ctx->state[word][1]);
+            store64_le(local_ptr_out[0], ctx->state[word][0]);
+            store64_le(local_ptr_out[1], ctx->state[word][1]);
 
-            ctx->out[0] += 8;
-            ctx->out[1] += 8;
+            local_ptr_out[0] += 8;
+            local_ptr_out[1] += 8;
 
             output_counter += 8;
             ctx->pos += 8;
@@ -257,12 +260,12 @@ static void shake_squeeze(struct shake_ctx *ctx)
 
         if (n > ctx->rate - ctx->pos) { n = ctx->rate - ctx->pos; }
 
-        store_partial_le(ctx->out[0], ctx->state[word][0], byte, n);
+        store_partial_le(local_ptr_out[0], ctx->state[word][0], byte, n);
 
-        store_partial_le(ctx->out[1], ctx->state[word][1], byte, n);
+        store_partial_le(local_ptr_out[1], ctx->state[word][1], byte, n);
 
-        ctx->out[0] += n;
-        ctx->out[1] += n;
+        local_ptr_out[0] += n;
+        local_ptr_out[1] += n;
 
         output_counter += n;
         ctx->pos += n;
