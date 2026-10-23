@@ -15,7 +15,8 @@ struct shake_ctx {
     size_t outlen;
 };
 
-void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, size_t inlen, size_t outlen);
+int shake_ctx_get_mem(struct shake_ctx *ctx, uint64_t *state, size_t size_mem);
+int shake_ctx_init(struct shake_ctx *ctx, size_t inlen, size_t outlen);
 void shake_get_first_msg(struct shake_ctx *ctx, const uint8_t *in, uint8_t *out);
 void shake_get_second_msg(struct shake_ctx *ctx, const uint8_t *in, uint8_t *out);
 void shake_get_third_msg(struct shake_ctx *ctx, const uint8_t *in, uint8_t *out);
@@ -29,13 +30,35 @@ static void shake_absorb(struct shake_ctx *ctx);
 static void shake_finalize(struct shake_ctx *ctx);
 static void shake_squeeze(struct shake_ctx *ctx);
 
-void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, size_t inlen, size_t outlen)
+int shake_ctx_get_mem(struct shake_ctx *ctx, uint64_t *state, size_t size_mem)
 {
+	if(!ctx || !state || size_mem != 100) { return -1; }
 	ctx->state = (uint64_t (*)[4])state;
+    ctx->rate = 0;
+    ctx->pos = 0;
+    ctx->in[0] = NULL;
+    ctx->in[1] = NULL;
+    ctx->in[2] = NULL;
+    ctx->in[3] = NULL;
+    ctx->inlen = 0;
+    ctx->out[0] = NULL;
+    ctx->out[1] = NULL;
+    ctx->out[2] = NULL;
+    ctx->out[3] = NULL;
+    ctx->outlen = 0;
+	return 0;
+}
+
+int shake_ctx_init(struct shake_ctx *ctx, size_t inlen, size_t outlen)
+{
+	if(!ctx || !ctx->state) { return -1; }
+	
 	ctx->rate = 0;
 	ctx->pos = 0;
 	ctx->inlen = inlen;
 	ctx->outlen = outlen;
+	
+	return 0;
 }
 
 void shake_get_first_msg(struct shake_ctx *ctx, const uint8_t *in, uint8_t *out)
@@ -253,7 +276,7 @@ static void shake_squeeze(struct shake_ctx *ctx)
     size_t output_counter = 0;
 
 	size_t local_outlen = ctx->outlen;
-    uint8_t *local_ptr_out = ctx->out;
+    uint8_t *local_ptr_out[4] = { ctx->out[0], ctx->out[1], ctx->out[2], ctx->out[3] };
 
     while (output_counter < local_outlen)
     {

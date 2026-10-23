@@ -20,7 +20,7 @@ void sha3_512(struct sha3_ctx *ctx);
 
 static void sha3_absorb(struct sha3_ctx *ctx);
 static void sha3_finalize(struct sha3_ctx *ctx);
-static void sha3_squeeze(struct sha3_ctx *ctx, u8 outlen);
+static void sha3_squeeze(struct sha3_ctx *ctx, uint8_t outlen);
 
 int sha3_ctx_get_mem(struct sha3_ctx *ctx, uint64_t *state, size_t size_mem)
 {
@@ -111,7 +111,7 @@ static void sha3_finalize(struct sha3_ctx *ctx)
 }
 
 // Extract output from the rate portion, permuting as needed
-static void sha3_squeeze(struct sha3_ctx *ctx, u8 outlen)
+static void sha3_squeeze(struct sha3_ctx *ctx, uint8_t outlen)
 {
     const uint8_t *s = (const uint8_t *)ctx->state;
 
