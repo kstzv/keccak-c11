@@ -14,7 +14,8 @@ struct shake_ctx {
     size_t outlen;
 };
 
-void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, const uint8_t *in, size_t inlen, uint8_t *out, size_t outlen);
+int shake_ctx_get_mem(struct shake_ctx *ctx, uint64_t *state, size_t size_mem);
+int shake_ctx_init(struct shake_ctx *ctx, const uint8_t *in, size_t inlen, uint8_t *out, size_t outlen);
 void shake_ctx_zero(struct shake_ctx *ctx);
 void shake128(struct shake_ctx *ctx);
 void shake256(struct shake_ctx *ctx);
@@ -23,10 +24,22 @@ static void shake_absorb(struct shake_ctx *ctx);
 static void shake_finalize(struct shake_ctx *ctx);
 static void shake_squeeze(struct shake_ctx *ctx);
 
-
-void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, const uint8_t *in, size_t inlen, uint8_t *out, size_t outlen)
+int shake_ctx_get_mem(struct shake_ctx *ctx, uint64_t *state, size_t size_mem)
 {
-    ctx->state = state;
+	if(!ctx || !state || size_mem != 25) { return -1; }
+	ctx->state = state;
+    ctx->rate = 0;
+    ctx->pos = 0;
+    ctx->in = NULL;
+    ctx->inlen = 0;
+    ctx->out = NULL;
+    ctx->outlen = 0;
+	return 0;
+}
+
+int shake_ctx_init(struct shake_ctx *ctx, const uint8_t *in, size_t inlen, uint8_t *out, size_t outlen)
+{
+	if(!ctx || !ctx->state || (inlen && !in) || (outlen && !out)) { return -1; }
     ctx->rate = 0;
     ctx->pos = 0;
 
@@ -35,6 +48,8 @@ void shake_ctx_init(struct shake_ctx *ctx, uint64_t *state, const uint8_t *in, s
 
     ctx->out = out;
     ctx->outlen = outlen;
+    
+    return 0;
 }
 
 // Clear the 1600-bit Keccak state and reset the context
